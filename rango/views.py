@@ -1,6 +1,9 @@
+from datetime import datetime
+
 from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.http import HttpResponse
+
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 
@@ -12,6 +15,17 @@ def index(request):
     category_list = Category.objects.order_by('-likes')[:5]
     page_list = Page.objects.order_by('-views')[:5]
 
+    if request.session.get('last_visit'):
+        last_visit_time = request.session.get('last_visit')
+        visits = request.session.get('visits', 0)
+
+        if (datetime.now() - datetime.strptime(last_visit_time[:-7], "%Y-%m-%d %H:%M:%S")).days > 0:
+            request.session['visits'] = visits + 1
+            request.session['last_visit'] = str(datetime.now())
+    else:
+        request.session['last_visit'] = str(datetime.now())
+        request.session['visits'] = 1
+
     context_dict = {}
     context_dict['boldmessage'] = 'Crunchy, creamy, cookie, candy, cupcake!'
     context_dict['categories'] = category_list
@@ -21,12 +35,8 @@ def index(request):
 
 
 def about(request):
-   
-    print(request.method)
-
-    print(request.user)
-
-    return render(request, 'rango/about.html')
+    visits = request.session.get('visits', 0)
+    return render(request, 'rango/about.html', {'visits': visits})
 
 
 def show_category(request, category_name_slug):
@@ -81,6 +91,7 @@ def add_page(request, category_name_slug):
                 page.category = category
                 page.views = 0
                 page.save()
+
                 return redirect(reverse('rango:show_category',
                                         kwargs={'category_name_slug': category_name_slug}))
         else:
@@ -99,7 +110,6 @@ def register(request):
 
         if user_form.is_valid() and profile_form.is_valid():
             user = user_form.save()
-
             user.set_password(user.password)
             user.save()
 
@@ -110,7 +120,6 @@ def register(request):
                 profile.picture = request.FILES['picture']
 
             profile.save()
-
             registered = True
         else:
             print(user_form.errors, profile_form.errors)
